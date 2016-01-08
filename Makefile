@@ -2,18 +2,33 @@
 # FLAGS
 #
 
+PROGRAM_NAME = cta
+VERSION_MAJOR = 0
+VERSION_MINOR = 1
+VERSION_PATCH = 0
+
+VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+
+# PATHS
+SRC_DIR = src
+BUILD_DIR = build
+
+SRC_CPP := $(wildcard $(SRC_DIR)/*.cpp)
+OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRC_CPP))
 
 CXXFLAGS = -std=c++11 -I.
 LIBS = -lboost_iostreams -lz
+LDFLAGS = $(LIBS)
 UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)  # Lab server: RHEL6
-	INCLUDES += -I $(BOOST_MODULE)/include
+ifeq ($(UNAME_S),Linux)
 	CXXFLAGS += -D LINUX -pthread  $(INCLUDES) -O3 -g
-	LDFLAGS = -L $(BOOST_MODULE)/lib $(LIBS) # -static
+	ifdef BOOST_MODULE
+		INCLUDES += -I $(BOOST_MODULE)/include
+		LDFLAGS += -L $(BOOST_MODULE)/lib
+	endif
 endif
 ifeq ($(UNAME_S),Darwin)  # Mac with Homebrew
 	CXXFLAGS += -D OSX -O3
-	LDFLAGS = $(LIBS)
 endif
 
 UNAME_P := $(shell uname -p)
@@ -33,13 +48,33 @@ PREFIX = /usr/local
 # TARGETS
 #
 
-all: cta
+all: checkdirs $(BUILD_DIR)/cta
+
+install: $(BUILD_DIR)/cta
+	install -m 0755 $(BUILD_DIR)/cta $(PREFIX)/bin
 
 clean:
-	rm -f cta
+	rm -rf $(BUILD_DIR)
 
-cta: cta.cpp
+checkdirs: $(BUILD_DIR)
+
+$(BUILD_DIR):
+	@mkdir -p $@
+
+$(BUILD_DIR)/cta: $(OBJECTS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS)
 
-install:
-	install -m 0755 cta $(PREFIX)/bin
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(SRC_DIR)/Version.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ -c $<
+
+$(SRC_DIR)/Version.hpp: Makefile
+	@echo '//' >$@
+	@echo '// Copyright 2015 The Parker Lab at the University of Michigan' >>$@
+	@echo '//' >>$@
+	@echo '// Licensed under Version 3 of the GPL or any later version' >>$@
+	@echo '//' >>$@
+	@echo >>$@
+	@echo '#define PROGRAM_NAME "$(PROGRAM_NAME)"' >>$@
+	@echo '#define VERSION_MAJOR $(VERSION_MAJOR)' >>$@
+	@echo '#define VERSION_MINOR $(VERSION_MINOR)' >>$@
+	@echo '#define VERSION_PATCH $(VERSION_PATCH)' >>$@

@@ -16,6 +16,8 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/stream.hpp>
 
+#include "Version.hpp"
+
 
 class FileException: public std::runtime_error {
 public:
@@ -98,12 +100,12 @@ std::string reverse_complement(const std::string& seq) {
 }
 
 // based on https://en.wikipedia.org/wiki/Levenshtein_distance
-long long levenshtein_distance(const std::string& s1, const std::string& s2, long long maximum = 0) {
+int64_t levenshtein_distance(const std::string& s1, const std::string& s2, int64_t maximum = 0) {
     // shortcuts
     if (s1 == s2) return 0;
 
-    long long s1_length = s1.size();
-    long long s2_length = s2.size();
+    int64_t s1_length = s1.size();
+    int64_t s2_length = s2.size();
 
     if (s1_length == 0) {
         return s2_length;
@@ -114,30 +116,30 @@ long long levenshtein_distance(const std::string& s1, const std::string& s2, lon
     }
 
     if (maximum) {
-        long long minimum_distance = llabs(s1_length - s2_length);
+        int64_t minimum_distance = llabs(s1_length - s2_length);
         if (maximum < minimum_distance) {
             return minimum_distance;
         }
     }
 
     // ok, not getting out of the work that easily
-    std::vector<long long> v1(s2_length + 1);
-    std::vector<long long> v2(s2_length + 1);
+    std::vector<int64_t> v1(s2_length + 1);
+    std::vector<int64_t> v2(s2_length + 1);
 
-    for (long long i = 0; i < s2_length; i++) {
+    for (int64_t i = 0; i < s2_length; i++) {
         v1[i] = i;
     }
 
-    long long v1_size = v1.size();
-    for (long long i = 0; i < s1_length; i++) {
+    int64_t v1_size = v1.size();
+    for (int64_t i = 0; i < s1_length; i++) {
         v2[0] = i + 1;
 
-        for (long long j = 0; j < s2_length; j++) {
+        for (int64_t j = 0; j < s2_length; j++) {
             int cost = s1[i] == s2[j] ? 0 : 1;
             v2[j + 1] = std::min(v2[j] + 1, std::min(v1[j + 1] + 1, v1[j] + cost));
         }
 
-        for (long long j = 0; j < v1_size; j++) {
+        for (int64_t j = 0; j < v1_size; j++) {
             v1[j] = v2[j];
         }
     }
@@ -146,18 +148,18 @@ long long levenshtein_distance(const std::string& s1, const std::string& s2, lon
 }
 
 /// Returns the position of the best alignment of the two sequences
-long long align(const std::string& seq1, const std::string& seq2, long max_edit_distance, bool verbose = false) {
-    long long seq1_length = seq1.size();
-    long long seq2_length = seq2.size();
+int64_t align(const std::string& seq1, const std::string& seq2, int64_t max_edit_distance, bool verbose = false) {
+    int64_t seq1_length = seq1.size();
+    int64_t seq2_length = seq2.size();
     std::string window;
-    long long distance = -1;
-    std::vector<std::pair<long, long long>> alignments;
+    int64_t distance = -1;
+    std::vector<std::pair<int64_t, int64_t>> alignments;
 
     if (verbose) {
         std::cout << "align: \n" << seq1 << '\n' << seq2 << '\n';
     }
 
-    for (long long i = 0; i < seq2_length; i++) {
+    for (int64_t i = 0; i < seq2_length; i++) {
         window = seq2.substr(i, seq1_length);
         distance = levenshtein_distance(window, seq1, max_edit_distance);
 
@@ -166,7 +168,7 @@ long long align(const std::string& seq1, const std::string& seq2, long max_edit_
         }
 
         if (distance <= max_edit_distance) {
-            alignments.push_back(std::pair<long, long long>(distance, i));
+            alignments.push_back(std::pair<int64_t, int64_t>(distance, i));
         }
     }
 
@@ -177,7 +179,7 @@ long long align(const std::string& seq1, const std::string& seq2, long max_edit_
         }
     }
 
-    long long best_position = -1;
+    int64_t best_position = -1;
     if (!alignments.empty()) {
         best_position = alignments[0].second;
     }
@@ -185,20 +187,20 @@ long long align(const std::string& seq1, const std::string& seq2, long max_edit_
     return best_position;
 }
 
-void trim_fastq_record(FASTQRecord& record, long long start, long long end) {
+void trim_fastq_record(FASTQRecord& record, int64_t start, int64_t end) {
     record.sequence = record.sequence.substr(start, end);
     record.quality = record.quality.substr(start, end);
 }
 
-void trim_pair(FASTQRecord& rec1, FASTQRecord& rec2, long rc_length, long max_edit_distance, long fudge=0, long trim_start=0, bool verbose = false) {
-    long long alignment_start = -1;
+void trim_pair(FASTQRecord& rec1, FASTQRecord& rec2, int64_t rc_length, int64_t max_edit_distance, int64_t fudge=0, int64_t trim_start=0, bool verbose = false) {
+    int64_t alignment_start = -1;
     std::string rec2_rc = reverse_complement(rec2.sequence.substr(0, rc_length));
     if (verbose) {
         std::cout << rec1.sequence << '\n' << rec2.sequence << '\n' << rec2_rc << '\n';
     }
 
     size_t position_of_rec2_rc_in_rec1 = rec1.sequence.rfind(rec2_rc);
-    long long trim_end = rc_length - fudge;
+    int64_t trim_end = rc_length - fudge;
 
     if (position_of_rec2_rc_in_rec1 != std::string::npos) {
         alignment_start = position_of_rec2_rc_in_rec1;
@@ -230,10 +232,16 @@ void trim_pair(FASTQRecord& rec1, FASTQRecord& rec2, long rc_length, long max_ed
     }
 }
 
-void print_usage() {
-    std::cout << "trim_adapters: Trim adapters from paired-end HTS reads.\n\n"
+std::string version_string() {
+    std::stringstream ss;
+    ss << PROGRAM_NAME << " " << VERSION_MAJOR << "." << VERSION_MINOR << "." << VERSION_PATCH;
+    return ss.str();
+}
 
-              << "Usage:\n\ntrim_adapters [options] file1 file2\n\n"
+void print_usage() {
+    std::cout << version_string() << ": Trim adapters from paired-end HTS reads.\n\n"
+
+              << "Usage:\n\n" << PROGRAM_NAME << " [options] file1 file2\n\n"
               << "where:\n"
               << "    file1 contains the first reads of all the pairs\n"
               << "    file2 contains the second reads of all the pairs\n\n"
@@ -242,6 +250,7 @@ void print_usage() {
 
               << "-h|--help: show this usage message.\n\n"
               << "-v|--verbose: show more details and progress updates.\n\n"
+              << "--version: print the version of the program." << std::endl << std::endl
 
               << "-m|--max-edit-distance\n"
               << "    The maximum edit distance permitted when aligning the paired reads. The default is 1.\n"
@@ -268,16 +277,17 @@ int main(int argc, char **argv)
     int c, option_index = 0;
     bool verbose = 0;
 
-    long long max_edit_distance = 1;
-    long long fudge = 0;
-    long long trim_start = 0;
-    long long rc_length = 20;
+    int64_t max_edit_distance = 1;
+    int64_t fudge = 0;
+    int64_t trim_start = 0;
+    int64_t rc_length = 20;
     std::string input_filename1;
     std::string input_filename2;
 
     static struct option long_options[] = {
         {"help", no_argument, NULL, 'h'},
         {"verbose", no_argument, NULL, 'v'},
+        {"version", no_argument, NULL, 0},
         {"max-edit-distance", required_argument, NULL, 'd'},
         {"fudge", required_argument, NULL, 'f'},
         {"trim-from-start", required_argument, NULL, 't'},
@@ -307,6 +317,16 @@ int main(int argc, char **argv)
         case 'r':
             rc_length = std::stoll(optarg);
             break;
+        case 0:
+            if (long_options[option_index].flag != 0){
+                break;
+            }
+
+            if (long_options[option_index].name == std::string("version")) {
+                std::cout << version_string() << std::endl;
+                exit(1);
+            }
+
         default:
             print_usage();
             exit(1);
