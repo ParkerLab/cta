@@ -9,7 +9,7 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)  # Lab server: RHEL6
 	INCLUDES += -I $(BOOST_MODULE)/include
 	CXXFLAGS += -D LINUX -pthread  $(INCLUDES) -O3 -g
-	LDFLAGS = -L $(BOOST_MODULE)/lib $(LIBS) -static
+	LDFLAGS = -L $(BOOST_MODULE)/lib $(LIBS) # -static
 endif
 ifeq ($(UNAME_S),Darwin)  # Mac with Homebrew
 	CXXFLAGS += -D OSX -O3
@@ -27,14 +27,19 @@ ifneq ($(filter arm%,$(UNAME_P)),)
 	CXXFLAGS += -D ARM
 endif
 
+PREFIX = /usr/local
+
 #
 # TARGETS
 #
 
-all: trim_adapters
+all: cta
 
 clean:
-	rm -f trim_adapters
+	rm -f cta
 
-trim_adapters: trim_adapters.cpp
+cta: cta.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS)
+
+install:
+	install -m 0755 cta $(PREFIX)/bin

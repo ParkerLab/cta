@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string>
 
-#include <boost/iostreams/device/mapped_file.hpp>
+#include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -20,7 +20,7 @@
 class FileException: public std::runtime_error {
 public:
     FileException() : std::runtime_error("") { }
-    FileException(std::string msg) : std::runtime_error(msg) { }
+    explicit FileException(std::string msg) : std::runtime_error(msg) { }
 };
 
 class FASTQRecord {
@@ -128,6 +128,7 @@ long long levenshtein_distance(const std::string& s1, const std::string& s2, lon
         v1[i] = i;
     }
 
+    long long v1_size = v1.size();
     for (long long i = 0; i < s1_length; i++) {
         v2[0] = i + 1;
 
@@ -136,7 +137,7 @@ long long levenshtein_distance(const std::string& s1, const std::string& s2, lon
             v2[j + 1] = std::min(v2[j] + 1, std::min(v1[j + 1] + 1, v1[j] + cost));
         }
 
-        for (long long j = 0; j < v1.size(); j++) {
+        for (long long j = 0; j < v1_size; j++) {
             v1[j] = v2[j];
         }
     }
@@ -320,14 +321,11 @@ int main(int argc, char **argv)
     input_filename1 = argv[optind];
     input_filename2 = argv[optind + 1];
 
-    bio::mapped_file_source input_file1(input_filename1);
-    bio::stream<bio::mapped_file_source> input_stream1(input_file1);
+    bio::file_source input_file1(input_filename1);
+    bio::stream<bio::file_source> input_stream1(input_file1);
 
-    bio::mapped_file_source input_file2(input_filename2);
-    bio::stream<bio::mapped_file_source> input_stream2(input_file2);
-
-    // std::ifstream input_file1(input_filename1, std::ios_base::in | std::ios_base::binary);
-    // std::ifstream input_file2(input_filename2, std::ios_base::in | std::ios_base::binary);
+    bio::file_source input_file2(input_filename2);
+    bio::stream<bio::file_source> input_stream2(input_file2);
 
     bio::filtering_stream<bio::input> in1;
     if (is_gzipped_file(input_filename1)) {
