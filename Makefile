@@ -17,8 +17,8 @@ SRC_CPP := $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRC_CPP))
 
 CXXFLAGS = -std=c++11 -I.
-LIBS = -lboost_iostreams -lz
-LDFLAGS = $(LIBS)
+LDLIBS = -lboost_iostreams -lz
+LDFLAGS = -static
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
 	CXXFLAGS += -D LINUX -pthread  $(INCLUDES) -O3 -g
@@ -62,7 +62,7 @@ $(BUILD_DIR):
 	@mkdir -p $@
 
 $(BUILD_DIR)/cta: $(OBJECTS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(SRC_DIR)/Version.hpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ -c $<

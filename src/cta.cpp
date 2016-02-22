@@ -100,12 +100,12 @@ std::string reverse_complement(const std::string& seq) {
 }
 
 // based on https://en.wikipedia.org/wiki/Levenshtein_distance
-int64_t levenshtein_distance(const std::string& s1, const std::string& s2, int64_t maximum = 0) {
+long long int levenshtein_distance(const std::string& s1, const std::string& s2, long long int maximum = 0) {
     // shortcuts
     if (s1 == s2) return 0;
 
-    int64_t s1_length = s1.size();
-    int64_t s2_length = s2.size();
+    long long int s1_length = s1.size();
+    long long int s2_length = s2.size();
 
     if (s1_length == 0) {
         return s2_length;
@@ -116,30 +116,30 @@ int64_t levenshtein_distance(const std::string& s1, const std::string& s2, int64
     }
 
     if (maximum) {
-        int64_t minimum_distance = llabs(s1_length - s2_length);
+        long long int minimum_distance = llabs(s1_length - s2_length);
         if (maximum < minimum_distance) {
             return minimum_distance;
         }
     }
 
     // ok, not getting out of the work that easily
-    std::vector<int64_t> v1(s2_length + 1);
-    std::vector<int64_t> v2(s2_length + 1);
+    std::vector<long long int> v1(s2_length + 1);
+    std::vector<long long int> v2(s2_length + 1);
 
-    for (int64_t i = 0; i < s2_length; i++) {
+    for (long long int i = 0; i < s2_length; i++) {
         v1[i] = i;
     }
 
-    int64_t v1_size = v1.size();
-    for (int64_t i = 0; i < s1_length; i++) {
+    long long int v1_size = v1.size();
+    for (long long int i = 0; i < s1_length; i++) {
         v2[0] = i + 1;
 
-        for (int64_t j = 0; j < s2_length; j++) {
+        for (long long int j = 0; j < s2_length; j++) {
             int cost = s1[i] == s2[j] ? 0 : 1;
             v2[j + 1] = std::min(v2[j] + 1, std::min(v1[j + 1] + 1, v1[j] + cost));
         }
 
-        for (int64_t j = 0; j < v1_size; j++) {
+        for (long long int j = 0; j < v1_size; j++) {
             v1[j] = v2[j];
         }
     }
@@ -148,18 +148,18 @@ int64_t levenshtein_distance(const std::string& s1, const std::string& s2, int64
 }
 
 /// Returns the position of the best alignment of the two sequences
-int64_t align(const std::string& seq1, const std::string& seq2, int64_t max_edit_distance, bool verbose = false) {
-    int64_t seq1_length = seq1.size();
-    int64_t seq2_length = seq2.size();
+long long int align(const std::string& seq1, const std::string& seq2, long long int max_edit_distance, bool verbose = false) {
+    long long int seq1_length = seq1.size();
+    long long int seq2_length = seq2.size();
     std::string window;
-    int64_t distance = -1;
-    std::vector<std::pair<int64_t, int64_t>> alignments;
+    long long int distance = -1;
+    std::vector<std::pair<long long int, long long int>> alignments;
 
     if (verbose) {
         std::cout << "align: \n" << seq1 << '\n' << seq2 << '\n';
     }
 
-    for (int64_t i = 0; i < seq2_length; i++) {
+    for (long long int i = 0; i < seq2_length; i++) {
         window = seq2.substr(i, seq1_length);
         distance = levenshtein_distance(window, seq1, max_edit_distance);
 
@@ -168,7 +168,7 @@ int64_t align(const std::string& seq1, const std::string& seq2, int64_t max_edit
         }
 
         if (distance <= max_edit_distance) {
-            alignments.push_back(std::pair<int64_t, int64_t>(distance, i));
+            alignments.push_back(std::pair<long long int, long long int>(distance, i));
         }
     }
 
@@ -179,7 +179,7 @@ int64_t align(const std::string& seq1, const std::string& seq2, int64_t max_edit
         }
     }
 
-    int64_t best_position = -1;
+    long long int best_position = -1;
     if (!alignments.empty()) {
         best_position = alignments[0].second;
     }
@@ -187,20 +187,20 @@ int64_t align(const std::string& seq1, const std::string& seq2, int64_t max_edit
     return best_position;
 }
 
-void trim_fastq_record(FASTQRecord& record, int64_t start, int64_t end) {
+void trim_fastq_record(FASTQRecord& record, long long int start, long long int end) {
     record.sequence = record.sequence.substr(start, end);
     record.quality = record.quality.substr(start, end);
 }
 
-void trim_pair(FASTQRecord& rec1, FASTQRecord& rec2, int64_t rc_length, int64_t max_edit_distance, int64_t fudge=0, int64_t trim_start=0, bool verbose = false) {
-    int64_t alignment_start = -1;
+void trim_pair(FASTQRecord& rec1, FASTQRecord& rec2, long long int rc_length, long long int max_edit_distance, long long int fudge = 0, long long int trim_start = 0, bool verbose = false) {
+    long long int alignment_start = -1;
     std::string rec2_rc = reverse_complement(rec2.sequence.substr(0, rc_length));
     if (verbose) {
         std::cout << rec1.sequence << '\n' << rec2.sequence << '\n' << rec2_rc << '\n';
     }
 
     size_t position_of_rec2_rc_in_rec1 = rec1.sequence.rfind(rec2_rc);
-    int64_t trim_end = rc_length - fudge;
+    long long int trim_end = rc_length - fudge;
 
     if (position_of_rec2_rc_in_rec1 != std::string::npos) {
         alignment_start = position_of_rec2_rc_in_rec1;
@@ -277,10 +277,10 @@ int main(int argc, char **argv)
     int c, option_index = 0;
     bool verbose = 0;
 
-    int64_t max_edit_distance = 1;
-    int64_t fudge = 0;
-    int64_t trim_start = 0;
-    int64_t rc_length = 20;
+    long long int max_edit_distance = 1;
+    long long int fudge = 0;
+    long long int trim_start = 0;
+    long long int rc_length = 20;
     std::string input_filename1;
     std::string input_filename2;
 
