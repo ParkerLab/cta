@@ -5,7 +5,7 @@
 PROGRAM_NAME = cta
 VERSION_MAJOR = 0
 VERSION_MINOR = 1
-VERSION_PATCH = 0
+VERSION_PATCH = 1
 
 VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 
@@ -18,13 +18,19 @@ OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRC_CPP))
 
 CXXFLAGS = -std=c++11 -I.
 LDLIBS = -lboost_iostreams -lz
-LDFLAGS = -static
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-	CXXFLAGS += -D LINUX -pthread  $(INCLUDES) -O3 -g
+	CXXFLAGS += -D LINUX $(INCLUDES) -O3 -g
 	ifdef BOOST_MODULE
 		INCLUDES += -I $(BOOST_MODULE)/include
 		LDFLAGS += -L $(BOOST_MODULE)/lib
+	else
+		ifdef BOOST_INCLUDE
+			INCLUDES += -I$(BOOST_INCLUDE)
+	    endif
+	    ifdef BOOST_LIB
+			LDFLAGS += -L$(BOOST_LIB)
+	    endif
 	endif
 endif
 ifeq ($(UNAME_S),Darwin)  # Mac with Homebrew
