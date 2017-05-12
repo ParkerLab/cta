@@ -16,7 +16,9 @@ BUILD_DIR = build
 SRC_CPP := $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRC_CPP))
 
-CXXFLAGS = -std=c++11 -I.
+CPPFLAGS = -pedantic -Wall -Wextra -Wwrite-strings -Wstrict-overflow -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong -fno-strict-aliasing -fPIC $(INCLUDES)
+CXXFLAGS = -std=c++11 -O3 -g $(CPPFLAGS)
+
 LDLIBS = -lboost_iostreams -lz
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
@@ -54,21 +56,23 @@ PREFIX = /usr/local
 # TARGETS
 #
 
-all: checkdirs $(BUILD_DIR)/cta
+.PHONY: all checkdirs clean install
 
-install: $(BUILD_DIR)/cta
-	install -m 0755 $(BUILD_DIR)/cta $(PREFIX)/bin
+all: $(BUILD_DIR)/cta
+
+checkdirs: $(BUILD_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR)
 
-checkdirs: $(BUILD_DIR)
+install: $(BUILD_DIR)/cta
+	install -m 0755 $(BUILD_DIR)/cta $(PREFIX)/bin
 
 $(BUILD_DIR):
 	@mkdir -p $@
 
-$(BUILD_DIR)/cta: $(OBJECTS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+$(BUILD_DIR)/cta: checkdirs $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(LDFLAGS) $(LDLIBS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(SRC_DIR)/Version.hpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ -c $<
