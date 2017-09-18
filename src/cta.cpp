@@ -18,6 +18,8 @@
 
 #include "Version.hpp"
 
+namespace bio = boost::iostreams;
+
 
 class FileException: public std::runtime_error {
 public:
@@ -52,7 +54,7 @@ std::istream& operator>>(std::istream& is, FASTQRecord& record) {
 ///
 /// Check for the GZIP header in a file
 ///
-bool is_gzipped_file(std::string filename) {
+bool is_gzipped_file(const std::string& filename) {
     bool gzipped = false;
     FILE* f = fopen(filename.c_str(), "rb");
 
@@ -67,8 +69,13 @@ bool is_gzipped_file(std::string filename) {
     return gzipped;
 }
 
+bool is_gzipped_filename(const std::string& filename) {
+    std::string ext = ".gz";
+    return std::equal(ext.rbegin(), ext.rend(), filename.rbegin());
+}
+
 std::regex fastq_filename_re("\\.(fq|fastq)?(\\.gz)?$");
-std::string make_trimmed_filename(std::string filename) {
+std::string make_trimmed_filename(const std::string& filename) {
     return std::regex_replace(filename, fastq_filename_re, ".trimmed.fq.gz");
 }
 
@@ -241,10 +248,15 @@ std::string version_string() {
 void print_usage() {
     std::cout << version_string() << ": Trim adapters from paired-end HTS reads.\n\n"
 
-              << "Usage:\n\n" << PROGRAM_NAME << " [options] file1 file2\n\n"
+              << "Usage:\n\n" << PROGRAM_NAME << " [options] input_file1 input_file2 [output_file1 output_file2]\n\n"
               << "where:\n"
-              << "    file1 contains the first reads of all the pairs\n"
-              << "    file2 contains the second reads of all the pairs\n\n"
+              << "    input_file1 contains the first reads of all pairs\n"
+              << "    input_file2 contains the second reads of all pairs\n"
+              << "    output_file1 will contain the trimmed first reads of all pairs\n"
+              << "    output_file2 will contain the trimmed second reads of all pairs\n\n"
+
+              << "You must supply both of the output file names, or neither. If not\n"
+              << "specified, they will be inferred from the inputs.\n\n"
 
               << "Options may include:\n\n"
 
@@ -272,8 +284,6 @@ void print_usage() {
 
 int main(int argc, char **argv)
 {
-    namespace bio = boost::iostreams;
-
     int c, option_index = 0;
     bool verbose = 0;
 
@@ -283,6 +293,8 @@ int main(int argc, char **argv)
     long long int rc_length = 20;
     std::string input_filename1;
     std::string input_filename2;
+    std::string output_filename1;
+    std::string output_filename2;
 
     static struct option long_options[] = {
         {"help", no_argument, NULL, 'h'},
@@ -333,13 +345,23 @@ int main(int argc, char **argv)
         }
     }
 
-    if ((optind + 2) > argc) {
+    if (argc < (optind + 2)) {
         print_usage();
         exit(1);
     }
 
     input_filename1 = argv[optind];
     input_filename2 = argv[optind + 1];
+
+    if (argc > (optind + 2)) {
+        if (argc == optind + 4) {
+            output_filename1 = argv[optind + 2];
+            output_filename2 = argv[optind + 3];
+        } else {
+            print_usage();
+            exit(1);
+        }
+    }
 
     bio::file_source input_file1(input_filename1);
     bio::stream<bio::file_source> input_stream1(input_file1);
@@ -359,8 +381,13 @@ int main(int argc, char **argv)
     }
     in2.push(input_stream2);
 
-    std::string output_filename1 = make_trimmed_filename(input_filename1);
-    std::string output_filename2 = make_trimmed_filename(input_filename2);
+    if (output_filename1.empty()) {
+        output_filename1 = make_trimmed_filename(input_filename1);
+    }
+
+    if (output_filename2.empty()) {
+        output_filename2 = make_trimmed_filename(input_filename2);
+    }
 
     if (verbose) {
         std::cout << "Writing to " << output_filename1 << " and " << output_filename2 << "...\n";
@@ -370,11 +397,15 @@ int main(int argc, char **argv)
     std::ofstream output_file2(output_filename2, std::ios_base::out | std::ios_base::binary);
 
     bio::filtering_stream<bio::output> out1;
-    out1.push(bio::gzip_compressor(bio::gzip_params(bio::gzip::best_speed)));
+    if (is_gzipped_filename(output_filename1)) {
+        out1.push(bio::gzip_compressor(bio::gzip_params(bio::gzip::best_speed)));
+    }
     out1.push(output_file1);
 
     bio::filtering_stream<bio::output> out2;
-    out2.push(bio::gzip_compressor(bio::gzip_params(bio::gzip::best_speed)));
+    if (is_gzipped_filename(output_filename2)) {
+        out2.push(bio::gzip_compressor(bio::gzip_params(bio::gzip::best_speed)));
+    }
     out2.push(output_file2);
 
     FASTQRecord record1;
