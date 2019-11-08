@@ -153,8 +153,16 @@ long long int levenshtein_distance(const std::string& s1, const std::string& s2,
             v2[j + 1] = std::min(v2[j] + 1, std::min(v1[j + 1] + 1, v1[j] + cost));
         }
 
+        long long int minimum = maximum + 1;
         for (long long int j = 0; j < v1_size; j++) {
+            if (v2[j] < minimum) {
+                minimum = v2[j];
+            }
             v1[j] = v2[j];
+        }
+        if (minimum > maximum) {
+            // abort early
+            return maximum + 1;
         }
     }
 
