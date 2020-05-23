@@ -275,6 +275,10 @@ void print_usage() {
               << "You must supply both of the output file names, or neither. If not\n"
               << "specified, they will be inferred from the inputs.\n\n"
 
+							<< "If using barcode options, ensure that your files contain the correct\n"
+							<< "information. For example, if using -a, cta will only process number of\n"
+							<< "FASTQ reads equal to the number of records in the barcode index file.\n\n"
+
               << "Options may include:\n\n"
 
               << "-h|--help: show this usage message.\n\n"
@@ -297,40 +301,33 @@ void print_usage() {
               << "    Trim this number of bases from the start of each sequence. The default is zero.\n"
 
               << "-a|--append-barcode\n"
-              << "    Append barcodes from this fastq file to the end of read names (useful for e.g. single-cell data).\n"
+              << "    Append barcodes from the given FASTQ file to the end of read names (useful for single-cell data).\n"
 
-			  << "-x|--selected-barcodes\n"
-              << "    Select and output reads corresponding to these barcodes from this unzipped text file\n"
+							<< "-x|--selected-barcodes\n"
+							<< "    Only output reads corresponding to barcodes in the given file.\n"
 
               << std::endl;
 }
 
-bool getFileContent(std::string fileName, std::map<std::string,bool> & vecOfStrs)
-{
+void get_file_content(std::string filename, std::map<std::string, bool> & str_map) {
+	std::ifstream in(filename.c_str());
 
-	// Open the File
-	std::ifstream in(fileName.c_str());
-
-	// Check if object is valid
-	if(!in)
-		{
-			std::cerr << "Cannot open the File : "<<fileName<<std::endl;
-			return false;
-		}
+	if (!in) {
+		throw FileException("Could not open file \"" + filename + "\": " + strerror(errno));
+	}
 
 	std::string str;
-	// Read the next line from File untill it reaches the end.
-	while (std::getline(in, str))
-		{
-			// Line contains string of length > 0 then save it in vector
+
+	// Read the next line from file untill it reaches the end.
+	while (std::getline(in, str)) {
+		// Line contains string of length > 0 then save it in vector
 			if(str.size() > 0)
-				vecOfStrs[str] = true;
-		}
-	//Close The File
+				str_map[str] = true;
+	}
+
 	in.close();
-	return true;
 }
- 
+
 int main(int argc, char **argv)
 {
     int c, option_index = 0;
@@ -343,7 +340,7 @@ int main(int argc, char **argv)
     std::string input_filename1;
     std::string input_filename2;
     std::string barcode_filename;
-	std::string selected_barcode_filename;
+		std::string selected_barcode_filename;
     std::string output_filename1;
     std::string output_filename2;
 
@@ -356,7 +353,7 @@ int main(int argc, char **argv)
         {"trim-from-start", required_argument, NULL, 't'},
         {"rc-length", required_argument, NULL, 'r'},
         {"append-barcode", required_argument, NULL, 'a'},
-		{"selected-barcodes", required_argument, NULL, 'x'},
+				{"selected-barcodes", required_argument, NULL, 'x'},
         {0, 0, 0, 0}
     };
 
@@ -385,9 +382,9 @@ int main(int argc, char **argv)
         case 'a':
             barcode_filename = optarg;
             break;
-		case 'x':
-			selected_barcode_filename = optarg;
-			break;
+				case 'x':
+						selected_barcode_filename = optarg;
+						break;
         case 0:
             if (long_options[option_index].flag != 0){
                 break;
@@ -480,46 +477,65 @@ int main(int argc, char **argv)
     FASTQRecord record2;
     FASTQRecord recordBarcode;
 
-	if (!barcode_filename.empty()) {
-		if (!selected_barcode_filename.empty()) {
-			// Read list of selected barcodes
-			std::map<std::string,bool> selected_barcodes;
+		unsigned long long reads_processed = 0;
 
-			// Get the contents of file in a vector
-			bool result = getFileContent(selected_barcode_filename, selected_barcodes);
+		if (!barcode_filename.empty()) {
+				if (!selected_barcode_filename.empty()) {
+						// Read list of selected barcodes
+						std::map<std::string, bool> selected_barcodes;
 
-			// check is barcode is in selected barcodes, if yes, trim and append
-			while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
-				std::string barcode = recordBarcode.sequence;
-				if (selected_barcodes.count(barcode) > 0) {
-					trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-					record1.append_barcode(barcode);
-					record2.append_barcode(barcode);
-					out1 << record1;
-					out2 << record2;
+						// Get the contents of file in a vector
+						get_file_content(selected_barcode_filename, selected_barcodes);
+
+						if (selected_barcodes.size() < 1) {
+								std::cerr << "No barcodes found in file: " << selected_barcode_filename << std::endl;
+								exit(1);
+						}
+
+						// check if barcode is in selected barcodes, if yes, trim and append
+						while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
+							std::string barcode = recordBarcode.sequence;
+							if (selected_barcodes.count(barcode) > 0) {
+									reads_processed += 1;
+									trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+									record1.append_barcode(barcode);
+									record2.append_barcode(barcode);
+									out1 << record1;
+									out2 << record2;
+							}
+						}
 				}
-			}
+				else {
+						// just trim and append barcode
+						while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
+								reads_processed += 1;
+								std::string barcode = recordBarcode.sequence;
+								trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+								record1.append_barcode(barcode);
+								record2.append_barcode(barcode);
+								out1 << record1;
+								out2 << record2;
+						}
+				}
 		}
 		else {
-			// just trim and append barcode
-			while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
-				std::string barcode = recordBarcode.sequence;
-				trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-				record1.append_barcode(barcode);
-				record2.append_barcode(barcode);
-				out1 << record1;
-				out2 << record2;
-			}
+				// just trim
+				while ((in1 >> record1) && (in2 >> record2)) {
+						reads_processed += 1;
+						trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+						out1 << record1;
+						out2 << record2;
+				}
 		}
-	}
-	else {
-		// just trim
-		while ((in1 >> record1) && (in2 >> record2)){
-			trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-			out1 << record1;
-			out2 << record2;
+
+		// Sanity checking
+		if (reads_processed < 1) {
+				std::cerr << "Something went wrong. Processed " << reads_processed << " reads.\n";
+				exit(1);
 		}
-	}
-    bio::close(out1);
-    bio::close(out2);
+
+		std::cerr << "Done. Processed " << reads_processed << " reads.\n";
+
+		bio::close(out1);
+		bio::close(out2);
 }
