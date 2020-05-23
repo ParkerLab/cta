@@ -1,3 +1,4 @@
+
 #include <algorithm>
 #include <cerrno>
 #include <fstream>
@@ -10,6 +11,7 @@
 #include <stdexcept>
 #include <stdio.h>
 #include <string>
+#include <vector>
 
 #include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -33,6 +35,13 @@ public:
     std::string comment;
     std::string sequence;
     std::string quality;
+    void append_barcode(const std::string& barcode) {
+        if (name.find(' ')!=std::string::npos) {
+                name.insert(name.find(' '), "_" + barcode);
+        } else {
+                name += "_" + barcode;
+        }
+    }
 };
 
 std::ostream& operator<<(std::ostream& os, const FASTQRecord& record) {
@@ -146,8 +155,16 @@ long long int levenshtein_distance(const std::string& s1, const std::string& s2,
             v2[j + 1] = std::min(v2[j] + 1, std::min(v1[j + 1] + 1, v1[j] + cost));
         }
 
+        long long int minimum = maximum + 1;
         for (long long int j = 0; j < v1_size; j++) {
+            if (v2[j] < minimum) {
+                minimum = v2[j];
+            }
             v1[j] = v2[j];
+        }
+        if (minimum > maximum) {
+            // abort early
+            return maximum + 1;
         }
     }
 
@@ -279,9 +296,41 @@ void print_usage() {
               << "-t|--trim-from-start\n"
               << "    Trim this number of bases from the start of each sequence. The default is zero.\n"
 
+              << "-a|--append-barcode\n"
+              << "    Append barcodes from this fastq file to the end of read names (useful for e.g. single-cell data).\n"
+
+			  << "-x|--selected-barcodes\n"
+              << "    Select and output reads corresponding to these barcodes from this unzipped text file\n"
+
               << std::endl;
 }
 
+bool getFileContent(std::string fileName, std::map<std::string,bool> & vecOfStrs)
+{
+
+	// Open the File
+	std::ifstream in(fileName.c_str());
+
+	// Check if object is valid
+	if(!in)
+		{
+			std::cerr << "Cannot open the File : "<<fileName<<std::endl;
+			return false;
+		}
+
+	std::string str;
+	// Read the next line from File untill it reaches the end.
+	while (std::getline(in, str))
+		{
+			// Line contains string of length > 0 then save it in vector
+			if(str.size() > 0)
+				vecOfStrs[str] = true;
+		}
+	//Close The File
+	in.close();
+	return true;
+}
+ 
 int main(int argc, char **argv)
 {
     int c, option_index = 0;
@@ -293,6 +342,8 @@ int main(int argc, char **argv)
     long long int rc_length = 20;
     std::string input_filename1;
     std::string input_filename2;
+    std::string barcode_filename;
+	std::string selected_barcode_filename;
     std::string output_filename1;
     std::string output_filename2;
 
@@ -304,11 +355,13 @@ int main(int argc, char **argv)
         {"fudge", required_argument, NULL, 'f'},
         {"trim-from-start", required_argument, NULL, 't'},
         {"rc-length", required_argument, NULL, 'r'},
+        {"append-barcode", required_argument, NULL, 'a'},
+		{"selected-barcodes", required_argument, NULL, 'x'},
         {0, 0, 0, 0}
     };
 
     // parse the command line arguments
-    while ((c = getopt_long(argc, argv, "d:f:t:r:vh?", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:f:t:r:a:x:vh?", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
         case '?':
@@ -329,6 +382,12 @@ int main(int argc, char **argv)
         case 'r':
             rc_length = std::stoll(optarg);
             break;
+        case 'a':
+            barcode_filename = optarg;
+            break;
+		case 'x':
+			selected_barcode_filename = optarg;
+			break;
         case 0:
             if (long_options[option_index].flag != 0){
                 break;
@@ -369,6 +428,9 @@ int main(int argc, char **argv)
     bio::file_source input_file2(input_filename2);
     bio::stream<bio::file_source> input_stream2(input_file2);
 
+    bio::file_source barcode_file(barcode_filename);
+    bio::stream<bio::file_source> barcode_stream(barcode_file);
+
     bio::filtering_stream<bio::input> in1;
     if (is_gzipped_file(input_filename1)) {
         in1.push(bio::gzip_decompressor());
@@ -380,6 +442,12 @@ int main(int argc, char **argv)
         in2.push(bio::gzip_decompressor());
     }
     in2.push(input_stream2);
+
+    bio::filtering_stream<bio::input> inBarcode;
+    if (!barcode_filename.empty() && is_gzipped_file(barcode_filename)) {
+        inBarcode.push(bio::gzip_decompressor());
+    }
+    inBarcode.push(barcode_stream);
 
     if (output_filename1.empty()) {
         output_filename1 = make_trimmed_filename(input_filename1);
@@ -410,12 +478,48 @@ int main(int argc, char **argv)
 
     FASTQRecord record1;
     FASTQRecord record2;
+    FASTQRecord recordBarcode;
 
-    while ((in1 >> record1) && (in2 >> record2)) {
-        trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-        out1 << record1;
-        out2 << record2;
-    }
+	if (!barcode_filename.empty()) {
+		if (!selected_barcode_filename.empty()) {
+			// Read list of selected barcodes
+			std::map<std::string,bool> selected_barcodes;
+
+			// Get the contents of file in a vector
+			bool result = getFileContent(selected_barcode_filename, selected_barcodes);
+
+			// check is barcode is in selected barcodes, if yes, trim and append
+			while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
+				std::string barcode = recordBarcode.sequence;
+				if (selected_barcodes.count(barcode) > 0) {
+					trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+					record1.append_barcode(barcode);
+					record2.append_barcode(barcode);
+					out1 << record1;
+					out2 << record2;
+				}
+			}
+		}
+		else {
+			// just trim and append barcode
+			while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
+				std::string barcode = recordBarcode.sequence;
+				trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+				record1.append_barcode(barcode);
+				record2.append_barcode(barcode);
+				out1 << record1;
+				out2 << record2;
+			}
+		}
+	}
+	else {
+		// just trim
+		while ((in1 >> record1) && (in2 >> record2)){
+			trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+			out1 << record1;
+			out2 << record2;
+		}
+	}
     bio::close(out1);
     bio::close(out2);
 }
