@@ -264,68 +264,67 @@ std::string version_string() {
 
 void print_usage() {
     std::cout << version_string() << ": Trim adapters from paired-end HTS reads.\n\n"
+        << "Usage:\n\n" << PROGRAM_NAME << " [options] input_file1 input_file2 [output_file1 output_file2]\n\n"
+        << "where:\n"
+        << "    input_file1 contains the first reads of all pairs\n"
+        << "    input_file2 contains the second reads of all pairs\n"
+        << "    output_file1 will contain the trimmed first reads of all pairs\n"
+        << "    output_file2 will contain the trimmed second reads of all pairs\n\n"
 
-              << "Usage:\n\n" << PROGRAM_NAME << " [options] input_file1 input_file2 [output_file1 output_file2]\n\n"
-              << "where:\n"
-              << "    input_file1 contains the first reads of all pairs\n"
-              << "    input_file2 contains the second reads of all pairs\n"
-              << "    output_file1 will contain the trimmed first reads of all pairs\n"
-              << "    output_file2 will contain the trimmed second reads of all pairs\n\n"
+        << "You must supply both of the output file names, or neither. If not\n"
+        << "specified, they will be inferred from the inputs.\n\n"
 
-              << "You must supply both of the output file names, or neither. If not\n"
-              << "specified, they will be inferred from the inputs.\n\n"
+        << "If using barcode options, ensure that your files contain the correct\n"
+        << "information. For example, if using -a, cta will only process number of\n"
+        << "FASTQ reads equal to the number of records in the barcode index file.\n\n"
 
-							<< "If using barcode options, ensure that your files contain the correct\n"
-							<< "information. For example, if using -a, cta will only process number of\n"
-							<< "FASTQ reads equal to the number of records in the barcode index file.\n\n"
+        << "Options may include:\n\n"
 
-              << "Options may include:\n\n"
+        << "-h|--help: show this usage message.\n\n"
+        << "-v|--verbose: show more details and progress updates.\n\n"
+        << "--version: print the version of the program." << std::endl << std::endl
 
-              << "-h|--help: show this usage message.\n\n"
-              << "-v|--verbose: show more details and progress updates.\n\n"
-              << "--version: print the version of the program." << std::endl << std::endl
+        << "-m|--max-edit-distance\n"
+        << "    The maximum edit distance permitted when aligning the paired reads. The default is 1.\n"
 
-              << "-m|--max-edit-distance\n"
-              << "    The maximum edit distance permitted when aligning the paired reads. The default is 1.\n"
+        << "-f|--fudge\n"
+        << "    An arbitrary number of extra bases to trim, to make sure the reads and mates\n"
+        << "    don't overlap exactly. Some aligners (e.g. bowtie) apparently don't like perfectly\n"
+        << "    overlapping reads.\n"
 
-              << "-f|--fudge\n"
-              << "    An arbitrary number of extra bases to trim, to make sure the reads and mates\n"
-              << "    don't overlap exactly. Some aligners (e.g. bowtie) apparently don't like perfectly\n"
-              << "    overlapping reads.\n"
+        << "-r|--rc-length\n"
+        << "    Use the reverse complement of this number of bases from the beginning of the\n"
+        << "    reverse read to align the reads. The default is 20.\n"
 
-              << "-r|--rc-length\n"
-              << "    Use the reverse complement of this number of bases from the beginning of the\n"
-              << "    reverse read to align the reads. The default is 20.\n"
+        << "-t|--trim-from-start\n"
+        << "    Trim this number of bases from the start of each sequence. The default is zero.\n"
 
-              << "-t|--trim-from-start\n"
-              << "    Trim this number of bases from the start of each sequence. The default is zero.\n"
+        << "-a|--append-barcode\n"
+        << "    Append barcodes from the given FASTQ file to the end of read names (useful for single-cell data).\n"
 
-              << "-a|--append-barcode\n"
-              << "    Append barcodes from the given FASTQ file to the end of read names (useful for single-cell data).\n"
+        << "-x|--selected-barcodes\n"
+        << "    Only output reads corresponding to barcodes in the given file.\n"
 
-							<< "-x|--selected-barcodes\n"
-							<< "    Only output reads corresponding to barcodes in the given file.\n"
-
-              << std::endl;
+        << std::endl;
 }
 
 void get_file_content(std::string filename, std::map<std::string, bool> & str_map) {
-	std::ifstream in(filename.c_str());
+    std::ifstream in(filename.c_str());
 
-	if (!in) {
-		throw FileException("Could not open file \"" + filename + "\": " + strerror(errno));
-	}
+    if (!in) {
+        throw FileException("Could not open file \"" + filename + "\": " + strerror(errno));
+    }
 
-	std::string str;
+    std::string str;
 
-	// Read the next line from file untill it reaches the end.
-	while (std::getline(in, str)) {
-		// Line contains string of length > 0 then save it in vector
-			if(str.size() > 0)
-				str_map[str] = true;
-	}
+    // Read the next line from file until it reaches the end.
+    while (std::getline(in, str)) {
+        // Line contains string of length > 0 then save it in vector
+        if(str.size() > 0)
+            str_map[str] = true;
+    }
 
-	in.close();
+    in.close();
 }
 
 int main(int argc, char **argv)
@@ -340,7 +339,7 @@ int main(int argc, char **argv)
     std::string input_filename1;
     std::string input_filename2;
     std::string barcode_filename;
-		std::string selected_barcode_filename;
+    std::string selected_barcode_filename;
     std::string output_filename1;
     std::string output_filename2;
 
@@ -353,7 +352,7 @@ int main(int argc, char **argv)
         {"trim-from-start", required_argument, NULL, 't'},
         {"rc-length", required_argument, NULL, 'r'},
         {"append-barcode", required_argument, NULL, 'a'},
-				{"selected-barcodes", required_argument, NULL, 'x'},
+        {"selected-barcodes", required_argument, NULL, 'x'},
         {0, 0, 0, 0}
     };
 
@@ -382,9 +381,9 @@ int main(int argc, char **argv)
         case 'a':
             barcode_filename = optarg;
             break;
-				case 'x':
-						selected_barcode_filename = optarg;
-						break;
+        case 'x':
+            selected_barcode_filename = optarg;
+            break;
         case 0:
             if (long_options[option_index].flag != 0){
                 break;
@@ -477,65 +476,65 @@ int main(int argc, char **argv)
     FASTQRecord record2;
     FASTQRecord recordBarcode;
 
-		unsigned long long reads_processed = 0;
+    unsigned long long reads_processed = 0;
 
-		if (!barcode_filename.empty()) {
-				if (!selected_barcode_filename.empty()) {
-						// Read list of selected barcodes
-						std::map<std::string, bool> selected_barcodes;
+    if (!barcode_filename.empty()) {
+        if (!selected_barcode_filename.empty()) {
+            // Read list of selected barcodes
+            std::map<std::string, bool> selected_barcodes;
 
-						// Get the contents of file in a vector
-						get_file_content(selected_barcode_filename, selected_barcodes);
+            // Get the contents of file in a vector
+            get_file_content(selected_barcode_filename, selected_barcodes);
 
-						if (selected_barcodes.size() < 1) {
-								std::cerr << "No barcodes found in file: " << selected_barcode_filename << std::endl;
-								exit(1);
-						}
+            if (selected_barcodes.size() < 1) {
+                std::cerr << "No barcodes found in file: " << selected_barcode_filename << std::endl;
+                exit(1);
+            }
 
-						// check if barcode is in selected barcodes, if yes, trim and append
-						while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
-							std::string barcode = recordBarcode.sequence;
-							if (selected_barcodes.count(barcode) > 0) {
-									reads_processed += 1;
-									trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-									record1.append_barcode(barcode);
-									record2.append_barcode(barcode);
-									out1 << record1;
-									out2 << record2;
-							}
-						}
-				}
-				else {
-						// just trim and append barcode
-						while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
-								reads_processed += 1;
-								std::string barcode = recordBarcode.sequence;
-								trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-								record1.append_barcode(barcode);
-								record2.append_barcode(barcode);
-								out1 << record1;
-								out2 << record2;
-						}
-				}
-		}
-		else {
-				// just trim
-				while ((in1 >> record1) && (in2 >> record2)) {
-						reads_processed += 1;
-						trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-						out1 << record1;
-						out2 << record2;
-				}
-		}
+            // check if barcode is in selected barcodes, if yes, trim and append
+            while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
+                std::string barcode = recordBarcode.sequence;
+                if (selected_barcodes.count(barcode) > 0) {
+                    reads_processed += 1;
+                    trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+                    record1.append_barcode(barcode);
+                    record2.append_barcode(barcode);
+                    out1 << record1;
+                    out2 << record2;
+                }
+            }
+        }
+        else {
+            // just trim and append barcode
+            while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
+                reads_processed += 1;
+                std::string barcode = recordBarcode.sequence;
+                trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+                record1.append_barcode(barcode);
+                record2.append_barcode(barcode);
+                out1 << record1;
+                out2 << record2;
+            }
+        }
+    }
+    else {
+        // just trim
+        while ((in1 >> record1) && (in2 >> record2)) {
+            reads_processed += 1;
+            trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+            out1 << record1;
+            out2 << record2;
+        }
+    }
 
-		// Sanity checking
-		if (reads_processed < 1) {
-				std::cerr << "Something went wrong. Processed " << reads_processed << " reads.\n";
-				exit(1);
-		}
+    // Sanity checking
+    if (reads_processed < 1) {
+            std::cerr << "Something went wrong. Processed " << reads_processed << " reads.\n";
+            exit(1);
+    }
 
-		std::cerr << "Done. Processed " << reads_processed << " reads.\n";
+    std::cerr << "Done. Processed " << reads_processed << " reads.\n";
 
-		bio::close(out1);
-		bio::close(out2);
+    bio::close(out1);
+    bio::close(out2);
 }

@@ -1,7 +1,6 @@
 # cta
 
-`cta` is used to trim adapters from paired-end high-throughput sequencing reads
-in an adapter free manner.
+`cta` is used to trim adapters from paired-end high-throughput sequencing reads.
 
 ## Building
 
