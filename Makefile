@@ -49,7 +49,7 @@ ifdef BOOST_ROOT
 	LDFLAGS += -L$(BOOST_ROOT)/lib
 else
 	ifdef BOOST_INCLUDE
-		CPPFLAGS += -I$(BOOST_INCLUDE
+		CPPFLAGS += -I$(BOOST_INCLUDE)
 	endif
 
 	ifdef BOOST_LIB
