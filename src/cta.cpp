@@ -84,8 +84,9 @@ bool is_gzipped_filename(const std::string& filename) {
 }
 
 std::regex fastq_filename_re("\\.(fq|fastq)?(\\.gz)?$");
-std::string make_trimmed_filename(const std::string& filename) {
-    return std::regex_replace(filename, fastq_filename_re, ".trimmed.fq.gz");
+std::string make_trimmed_filename(const std::string filename) {
+    std::string substitution = ".trimmed.fq.gz";
+    return std::regex_replace(filename, fastq_filename_re, substitution);
 }
 
 std::map<char, char> nucleotide_complements = {
