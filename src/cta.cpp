@@ -36,6 +36,7 @@ public:
     std::string comment;
     std::string sequence;
     std::string quality;
+
     void append_barcode(const std::string& barcode) {
         if (name.find(' ')!=std::string::npos) {
                 name.insert(name.find(' '), "_" + barcode);
@@ -43,6 +44,24 @@ public:
                 name += "_" + barcode;
         }
     }
+
+    void strip_description() {
+        // the description is the part of the name after the first space
+        if (name.find(' ')!=std::string::npos) {
+            name = name.substr(0, name.find(' '));
+        }
+    }
+
+    std::string get_description() {
+        // the description is the part of the name after the first space
+        if (name.find(' ')!=std::string::npos) {
+            return name.substr(name.find(' '));
+        } else {
+            return "";
+        }
+    }
+
+
 };
 
 std::ostream& operator<<(std::ostream& os, const FASTQRecord& record) {
@@ -329,7 +348,18 @@ void print_usage() {
               << "-a|--append-barcode\n"
               << "    Append barcodes from this fastq file to the end of read names (useful for e.g. single-cell data).\n"
 
-			  << "-x|--selected-barcodes\n"
+              << "-d|--copy-description\n"
+              << "    Copy read descriptions (the part of the read name after the first space) from this fastq file\n"
+              << "    and add them as descriptions to the paired reads (useful when e.g. using bwa mem with the -C flag\n"
+              << "    for alignment).\n"
+
+              << "-s|--strip-description\n"
+              << "    Strip read descriptions (the part of the read name after the first space). For example, read name\n"
+              << "    '@LH00346:6:22CGGKLT3:1:1101:2387:1032:rCAGACGCGGCTTAAAGAAATGAGG 2:N:0:AGTTAGTT' would be changed to\n"
+              << "    '@LH00346:6:22CGGKLT3:1:1101:2387:1032:rCAGACGCGGCTTAAAGAAATGAGG'. Useful in \n"
+              << "     conjunction with --copy-description.\n"
+
+              << "-x|--selected-barcodes\n"
               << "    Select and output reads corresponding to these barcodes from this unzipped text file\n"
 
               << std::endl;
@@ -338,33 +368,34 @@ void print_usage() {
 bool getFileContent(std::string fileName, std::map<std::string,bool> & vecOfStrs)
 {
 
-	// Open the File
-	std::ifstream in(fileName.c_str());
+    // Open the File
+    std::ifstream in(fileName.c_str());
 
-	// Check if object is valid
-	if(!in)
-		{
-			std::cerr << "Cannot open the File : "<<fileName<<std::endl;
-			return false;
-		}
+    // Check if object is valid
+    if(!in)
+        {
+            std::cerr << "Cannot open the File : "<<fileName<<std::endl;
+            return false;
+        }
 
-	std::string str;
-	// Read the next line from File untill it reaches the end.
-	while (std::getline(in, str))
-		{
-			// Line contains string of length > 0 then save it in vector
-			if(str.size() > 0)
-				vecOfStrs[str] = true;
-		}
-	//Close The File
-	in.close();
-	return true;
+    std::string str;
+    // Read the next line from File untill it reaches the end.
+    while (std::getline(in, str))
+        {
+            // Line contains string of length > 0 then save it in vector
+            if(str.size() > 0)
+                vecOfStrs[str] = true;
+        }
+    //Close The File
+    in.close();
+    return true;
 }
  
 int main(int argc, char **argv)
 {
     int c, option_index = 0;
     bool verbose = 0;
+    bool strip_description = false;
 
     long long int max_edit_distance = 1;
     long long int fudge = 0;
@@ -373,7 +404,8 @@ int main(int argc, char **argv)
     std::string input_filename1;
     std::string input_filename2;
     std::string barcode_filename;
-	std::string selected_barcode_filename;
+    std::string selected_barcode_filename;
+    std::string description_filename;
     std::string output_filename1;
     std::string output_filename2;
 
@@ -386,12 +418,14 @@ int main(int argc, char **argv)
         {"trim-from-start", required_argument, NULL, 't'},
         {"rc-length", required_argument, NULL, 'r'},
         {"append-barcode", required_argument, NULL, 'a'},
-		{"selected-barcodes", required_argument, NULL, 'x'},
+        {"selected-barcodes", required_argument, NULL, 'x'},
+        {"copy-description", required_argument, NULL, 'd'},
+        {"strip-description", no_argument, NULL, 's'},
         {0, 0, 0, 0}
     };
 
     // parse the command line arguments
-    while ((c = getopt_long(argc, argv, "d:f:t:r:a:x:vh?", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:f:t:r:a:x:d:s:vh?", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
         case '?':
@@ -400,13 +434,13 @@ int main(int argc, char **argv)
         case 'v':
             verbose = true;
             break;
-        case 'd':
+        case 'm':
             max_edit_distance = std::stoll(optarg);
             break;
         case 'f':
             fudge = std::stoll(optarg);
             break;
-        case 's':
+        case 't':
             trim_start = std::stoll(optarg);
             break;
         case 'r':
@@ -415,9 +449,15 @@ int main(int argc, char **argv)
         case 'a':
             barcode_filename = optarg;
             break;
-		case 'x':
-			selected_barcode_filename = optarg;
-			break;
+        case 'x':
+            selected_barcode_filename = optarg;
+            break;
+        case 's':
+            strip_description = true;
+            break;
+        case 'd':
+            description_filename = optarg;
+            break;
         case 0:
             if (long_options[option_index].flag != 0){
                 break;
@@ -461,6 +501,9 @@ int main(int argc, char **argv)
     bio::file_source barcode_file(barcode_filename);
     bio::stream<bio::file_source> barcode_stream(barcode_file);
 
+    bio::file_source description_file(description_filename);
+    bio::stream<bio::file_source> description_stream(description_file);
+
     bio::filtering_stream<bio::input> in1;
     if (is_gzipped_file(input_filename1)) {
         in1.push(bio::gzip_decompressor());
@@ -478,6 +521,12 @@ int main(int argc, char **argv)
         inBarcode.push(bio::gzip_decompressor());
     }
     inBarcode.push(barcode_stream);
+
+    bio::filtering_stream<bio::input> inDescription;
+    if (!description_filename.empty() && is_gzipped_file(description_filename)) {
+        inDescription.push(bio::gzip_decompressor());
+    }
+    inDescription.push(description_stream);
 
     if (output_filename1.empty()) {
         output_filename1 = make_trimmed_filename(input_filename1);
@@ -509,47 +558,60 @@ int main(int argc, char **argv)
     FASTQRecord record1;
     FASTQRecord record2;
     FASTQRecord recordBarcode;
+    FASTQRecord recordDescription;
 
-	if (!barcode_filename.empty()) {
-		if (!selected_barcode_filename.empty()) {
-			// Read list of selected barcodes
-			std::map<std::string,bool> selected_barcodes;
+    std::string barcode;
 
-			// Get the contents of file in a vector
-			bool result = getFileContent(selected_barcode_filename, selected_barcodes);
+    std::map<std::string,bool> selected_barcodes;
+    bool result = (!barcode_filename.empty() & !selected_barcode_filename.empty()) ? getFileContent(selected_barcode_filename, selected_barcodes) : true;
 
-			// check is barcode is in selected barcodes, if yes, trim and append
-			while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
-				std::string barcode = recordBarcode.sequence;
-				if (selected_barcodes.count(barcode) > 0) {
-					trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-					record1.append_barcode(barcode);
-					record2.append_barcode(barcode);
-					out1 << record1;
-					out2 << record2;
-				}
-			}
-		}
-		else {
-			// just trim and append barcode
-			while ((in1 >> record1) && (in2 >> record2) && (inBarcode >> recordBarcode)) {
-				std::string barcode = recordBarcode.sequence;
-				trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-				record1.append_barcode(barcode);
-				record2.append_barcode(barcode);
-				out1 << record1;
-				out2 << record2;
-			}
-		}
-	}
-	else {
-		// just trim
-		while ((in1 >> record1) && (in2 >> record2)){
-			trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
-			out1 << record1;
-			out2 << record2;
-		}
-	}
+
+    while ((in1 >> record1) && (in2 >> record2)){
+
+        if (!barcode_filename.empty()) {
+            inBarcode >> recordBarcode;
+            barcode = recordBarcode.sequence;
+        }
+
+        if (!description_filename.empty()) {
+            inDescription >> recordDescription;
+        }
+
+        if (!barcode_filename.empty() && !selected_barcode_filename.empty()) {
+            if (selected_barcodes.count(barcode) == 0) {
+                continue;
+            }
+        }
+
+        if (strip_description) {
+            record1.strip_description();
+            record2.strip_description();
+        }
+
+        if (!description_filename.empty()) {
+            std::string description = recordDescription.get_description();
+            record1.name += description;
+            record2.name += description;
+        }
+
+        if (!barcode_filename.empty()) {
+            record1.append_barcode(barcode);
+            record2.append_barcode(barcode);
+        }
+
+        trim_pair(record1, record2, rc_length, max_edit_distance, fudge, trim_start, verbose);
+
+        out1 << record1;
+        out2 << record2;
+    }
+
     bio::close(out1);
     bio::close(out2);
+
+    bio::close(in1);
+    bio::close(in2);
+    bio::close(inBarcode);
+    bio::close(inDescription);
+
+    return 0;
 }
