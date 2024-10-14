@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -115,6 +116,26 @@ std::string reverse_complement(const std::string& seq) {
     return rc;
 }
 
+bool shares_kmer(const std::string& s1, const std::string& s2, int k) {
+    // return true if any kmer from s1 is in s2, else false
+
+    // get all s1 kmers
+    std::unordered_set<std::string> kmers;
+    for (int i = 0; i <= s1.size() - k; i++) {
+        kmers.insert(s1.substr(i, k));
+    }
+
+
+    // check if any kmer from s2 is in the set
+    for (int i = 0; i <= s2.size() - k; i++) {
+        if (kmers.count(s2.substr(i, k)) > 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // based on https://en.wikipedia.org/wiki/Levenshtein_distance
 long long int levenshtein_distance(const std::string& s1, const std::string& s2, long long int maximum = 0) {
     // shortcuts
@@ -177,10 +198,20 @@ long long int align(const std::string& seq1, const std::string& seq2, long long 
     long long int seq2_length = seq2.size();
     std::string window;
     long long int distance = -1;
+    long long int best_position = -1;
     std::vector<std::pair<long long int, long long int>> alignments;
+
+    int min_shared_kmer_size = seq1_length / (max_edit_distance + 1); // For two strings to have edit distance <= max_edit_distance, they must share a kmer of at least this size
 
     if (verbose) {
         std::cout << "align: \n" << seq1 << '\n' << seq2 << '\n';
+    }
+
+    if (!shares_kmer(seq1, seq2, min_shared_kmer_size)) {
+        if (verbose) {
+            std::cout << "align: no shared kmer of length >= " << min_shared_kmer_size << " between these sequences, so cannot have edit distance <= " << max_edit_distance << "\n";
+        }
+        return best_position;
     }
 
     for (long long int i = 0; i < seq2_length; i++) {
@@ -203,7 +234,6 @@ long long int align(const std::string& seq1, const std::string& seq2, long long 
         }
     }
 
-    long long int best_position = -1;
     if (!alignments.empty()) {
         best_position = alignments[0].second;
     }
